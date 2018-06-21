@@ -72,6 +72,7 @@ const typeDefs = `
         hour: Hour!
         room: RoomPayload
         isFree: Boolean!
+        bookedBy: String
         createdAt: Int
     }
     
@@ -102,6 +103,7 @@ const typeDefs = `
         book(author: String): Book,
         hours: [Hour],
         freeRooms(start: Float, end: Float): [RoomPayload]
+        occupiedRooms(start: Float, end: Float): [RoomPayload]
     }
 
     type Book { 
@@ -142,24 +144,24 @@ const floors = [
 ];
 
 const hours = [
-    {id: ++hid, start: 9, end: 9.5, created: 15299125},
-    {id: ++hid, start: 9.5, end: 10, created: 15299425},
-    {id: ++hid, start: 10, end: 10.5, created: 15299625},
-    {id: ++hid, start: 10.5, end: 11, created: 15293125},
-    {id: ++hid, start: 11, end: 11.5, created: 15293125},
-    {id: ++hid, start: 11.5, end: 12, created: 15293125},
-    {id: ++hid, start: 12, end: 12.5, created: 15299125},
-    {id: ++hid, start: 12.5, end: 13, created: 15299425},
-    {id: ++hid, start: 13, end: 13.5, created: 15299125},
-    {id: ++hid, start: 13.5, end: 14, created: 15299425},
-    {id: ++hid, start: 14, end: 14.5, created: 15299125},
-    {id: ++hid, start: 14.5, end: 15, created: 15299425},
-    {id: ++hid, start: 15, end: 15.5, created: 15299125},
-    {id: ++hid, start: 15.5, end: 16, created: 15299425},
-    {id: ++hid, start: 16, end: 16.5, created: 15299125},
-    {id: ++hid, start: 16.5, end: 17, created: 15299425},
-    {id: ++hid, start: 17, end: 17.5, created: 15299125},
-    {id: ++hid, start: 17.5, end: 18, created: 15299425},
+    {id: 0, start: 9, end: 9.5, created: 15299125},
+    {id: 1, start: 9.5, end: 10, created: 15299425},
+    {id: 2, start: 10, end: 10.5, created: 15299625},
+    {id: 3, start: 10.5, end: 11, created: 15293125},
+    {id: 4, start: 11, end: 11.5, created: 15293125},
+    {id: 5, start: 11.5, end: 12, created: 15293125},
+    {id: 6, start: 12, end: 12.5, created: 15299125},
+    {id: 7, start: 12.5, end: 13, created: 15299425},
+    {id: 8, start: 13, end: 13.5, created: 15299125},
+    {id: 9, start: 13.5, end: 14, created: 15299425},
+    {id: 10, start: 14, end: 14.5, created: 15299125},
+    {id: 11, start: 14.5, end: 15, created: 15299425},
+    {id: 12, start: 15, end: 15.5, created: 15299125},
+    {id: 13, start: 15.5, end: 16, created: 15299425},
+    {id: 14, start: 16, end: 16.5, created: 15299125},
+    {id: 15, start: 16.5, end: 17, created: 15299425},
+    {id: 16, start: 17, end: 17.5, created: 15299125},
+    {id: 17, start: 17.5, end: 18, created: 15299425},
 ];
 
 const dummyRoomHourConnections = [
@@ -167,24 +169,33 @@ const dummyRoomHourConnections = [
         cursor: 1,
         hour: 1,
         room: 2,
-        isFree: false,
+        bookedBy: 'Pesho',
         createdAt: 12341234
     },
     {
         cursor: 1,
         hour: 4,
         room: 2,
-        isFree: false,
+        bookedBy: 'Gosho',
         createdAt: 12341234
     },
     {
         cursor: 1,
         hour: 2,
         room: 1,
-        isFree: false,
+        bookedBy: 'Misho',
+        createdAt: 12341234
+    },
+    {
+        cursor: 1,
+        hour: 12,
+        room: 1,
+        bookedBy: 'Misho',
         createdAt: 12341234
     }
 ]
+
+const getElementById = (id, arr) => arr.find(el => el.id === id);
 
 const resolvers = {
     Query: {
@@ -201,11 +212,33 @@ const resolvers = {
         book: (obj, args, context) =>  books.find(book => book.author === args.author),
         hours: () => hours,
         freeRooms: (obj, args, context) => {
-            return rooms.filter(room => {
-                return dummyRoomHourConnections.filter(connection => {
-                    return connection.room === room.id
-                }).map(connection => true)
-            })
+            const connections = dummyRoomHourConnections.filter(connection => {
+                const hour = getElementById(connection.hour, hours);
+                return hour.start >= args.start && hour.end <= args.end;
+            });
+            return rooms.filter(room => !connections.find(conn => conn.room === room.id))
+        },
+
+        occupiedRooms: (obj, args, context) => {
+            const connections = dummyRoomHourConnections.filter(connection => {
+                const hour = getElementById(connection.hour, hours);
+                return hour.start >= args.start && hour.end <= args.end;
+            });
+            return rooms.filter(room => connections.find(conn => conn.room === room.id)).map(room => ({
+                ...room,
+                hoursConnection: connections.find(conn => conn.room === room.id)
+            }))
+        }
+    },
+
+    RoomHourEdge: {
+        bookedBy: (obj, args, context, info) => {
+            console.log(obj);
+            return obj.hoursConnection.bookedBy;
+        },
+        hour: (obj, args, context, info) => {
+            console.log(obj);
+            return getElementById(obj.hoursConnection.hour, hours);
         }
     },
 
@@ -233,15 +266,28 @@ const resolvers = {
         createdAt: () => 31
     },
 
-    RoomPayload: (obj) => {
-        return {
-            id: obj.id,
-            createdAt: obj.created,
-            name: obj.name,
-            hours: obj.hours
+    // RoomPayload: (obj) => {
+    //     console.log("======== RP")
+    //     return {
+    //         id: obj.id,
+    //         createdAt: obj.created,
+    //         name: obj.name,
+    //         hoursConnection: {}
+    //     }
+    // },
+    RoomPayload: { 
+        hoursConnection: (obj) => {
+            console.log("======== RP")
+            return [obj];
         }
     },
 
+    RoomHourConnection : {
+        edges: (obj) => {
+            console.log('=====> RoomHourConnection');
+            return [obj];
+        }
+    },
     Mutation: {
         generateRoom: (_, {}) => {
             //generate room
