@@ -104,6 +104,7 @@ const typeDefs = `
         hours: [Hour],
         freeRooms(start: Float, end: Float): [RoomPayload]
         occupiedRooms(start: Float, end: Float): [RoomPayload]
+        # getRooms(start: Float, end: Float, isBusy: Boolean): [RoomPayload]
     }
 
     type Book { 
@@ -130,10 +131,10 @@ const dummyPageInfo = {
 
 // example data
 const rooms = [
-    {id: ++id, name: 'Java', created: 1529316799125},
-    {id: ++id, name: 'JavaScript', created: 1529316799425},
-    {id: ++id, name: '#Net', created: 1529316799625},
-    {id: ++id, name: 'Mocha', created: 1529316712125}
+    {id: 0, name: 'Java', created: 1529316799125},
+    {id: 1, name: 'JavaScript', created: 1529316799425},
+    {id: 2, name: '#Net', created: 1529316799625},
+    {id: 3, name: 'Angular', created: 1529316712125}
 ];
 
 const floors = [
@@ -168,28 +169,28 @@ const dummyRoomHourConnections = [
     {
         cursor: 1,
         hour: 1,
-        room: 2,
+        room: 1,
         bookedBy: 'Pesho',
         createdAt: 12341234
     },
     {
         cursor: 1,
         hour: 4,
-        room: 2,
+        room: 1,
         bookedBy: 'Gosho',
         createdAt: 12341234
     },
     {
         cursor: 1,
         hour: 2,
-        room: 1,
+        room: 0,
         bookedBy: 'Misho',
         createdAt: 12341234
     },
     {
         cursor: 1,
         hour: 12,
-        room: 1,
+        room: 0,
         bookedBy: 'Misho',
         createdAt: 12341234
     }
@@ -226,21 +227,31 @@ const resolvers = {
             });
             return rooms.filter(room => connections.find(conn => conn.room === room.id)).map(room => ({
                 ...room,
-                hoursConnection: connections.find(conn => conn.room === room.id)
+                hoursConnection: hours.filter(hour => hour.start >= args.start && hour.end <= args.end).map(hour => {
+                    const conn = connections.find(conn => conn.hour === hour.id);
+                    return {
+                        hour,
+                        bookedBy: conn ? conn.bookedBy : null
+                    };
+                })
+                // hoursConnection: connections.find(conn => conn.room === room.id)
             }))
-        }
+        },
+        // getRooms: (obj, args, context) => {
+        //     rooms.filter((room) => !room.connection.isBusy).filter(hours )
+        // }
     },
 
-    RoomHourEdge: {
-        bookedBy: (obj, args, context, info) => {
-            console.log(obj);
-            return obj.hoursConnection.bookedBy;
-        },
-        hour: (obj, args, context, info) => {
-            console.log(obj);
-            return getElementById(obj.hoursConnection.hour, hours);
-        }
-    },
+    // RoomHourEdge: {
+    //     bookedBy: (obj, args, context, info) => {
+    //         console.log('yyyyyyyyyyyy', obj.hoursConnection.bookedBy)
+    //         return obj.hoursConnection.bookedBy;
+    //     },
+    //     hour: (obj, args, context, info) => {
+    //         console.log('++++++++++++++++++++++', obj.hoursConnection.hour)
+    //         return obj.hoursConnection.hour // getElementById(obj.hoursConnection.hour, hours);
+    //     }
+    // },
 
     Floor: {
         id: () => 1001,
@@ -284,8 +295,8 @@ const resolvers = {
 
     RoomHourConnection : {
         edges: (obj) => {
-            console.log('=====> RoomHourConnection');
-            return [obj];
+            console.log('=====> RoomHourConnection', obj);
+            return obj.hoursConnection;
         }
     },
     Mutation: {
