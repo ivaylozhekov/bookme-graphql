@@ -77,12 +77,12 @@ const typeDefs = `
         id: ID!
         createdAt: Int
         name: String
-        hoursConnection(bookedBy: String): [RoomHourConnection]
+        hoursConnection(bookedBy: String, booked: Boolean): [RoomHourConnection]
     }
     
     type RoomInput {
         name: String!
-        floorId: String! 
+        floorId: String!
     }
     # =============================================================
     # the schema allows the following query:
@@ -90,7 +90,7 @@ const typeDefs = `
         floors: [Floor]
         rooms(from: Int, to: Int): [RoomPayload],
         hours: [Hour],
-        getRooms(start: Float, end: Float, booked: Boolean): [RoomPayload]
+        getRooms(start: Float, end: Float, booked: Boolean, bookedBy: String): [RoomPayload]
     }
 
     # this schema allows the following mutation:
@@ -204,7 +204,7 @@ const resolvers = {
             });
             return rooms.filter(room => {
                 if(args.booked === undefined) return true;
-                const result = connections.find(conn => conn.room === room.id);
+                const result = connections.find(conn => args.bookedBy ? conn.room === room.id && conn.bookedBy === args.bookedBy : conn.room === room.id);
                 return args.booked ? result : !result;
             }).map(room => ({
                 ...room,
@@ -244,11 +244,15 @@ const resolvers = {
     },
 
     RoomPayload: { 
-        hoursConnection: (obj, args, context, info) => [
-            !args.bookedBy ?
-            obj.hoursConnection : 
-            obj.hoursConnection.filter(conn => conn.bookedBy === args.bookedBy)
-        ]
+        hoursConnection: (obj, args, context, info) => {
+            if (args.bookedBy) {
+                return [obj.hoursConnection.filter(conn => conn.bookedBy === args.bookedBy)];
+            } else if (args.booked !== undefined) {
+                return [obj.hoursConnection.filter(conn => args.booked ? conn.bookedBy : !conn.bookedBy)]
+            }
+
+            return [obj.hoursConnection];
+        }
     },
     
     RoomHourConnection : {
