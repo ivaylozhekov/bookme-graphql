@@ -1,14 +1,4 @@
 import {makeExecutableSchema} from 'graphql-tools';
-const books = [
-    {
-        title: "Harry Potter and the Sorcerer's stone",
-        author: 'J.K. Rowling',
-    }, 
-    {
-        title: 'Jurassic Park',
-        author: 'Michael Crichton',
-    },
-];
 
 const typeDefs = `
     interface Node {
@@ -99,19 +89,9 @@ const typeDefs = `
     type Query {
         floors: [Floor]
         rooms(from: Int, to: Int): [RoomPayload],
-        books: [Book]
-        book(author: String): Book,
         hours: [Hour],
-        freeRooms(start: Float, end: Float): [RoomPayload]
         getRooms(start: Float, end: Float, booked: Boolean): [RoomPayload]
-        # getRooms(start: Float, end: Float, isBusy: Boolean): [RoomPayload]
     }
-
-    type Book { 
-        title: String
-        author: String 
-    }  
-  
 
     # this schema allows the following mutation:
     type Mutation {
@@ -208,17 +188,7 @@ const resolvers = {
             console.log('0. get floors');
             return floors;
         },
-        books: () => books,
-        // book: () => ({})
-        book: (obj, args, context) =>  books.find(book => book.author === args.author),
         hours: () => hours,
-        // freeRooms: (obj, args, context) => {
-        //     const connections = dummyRoomHourConnections.filter(connection => {
-        //         const hour = getElementById(connection.hour, hours);
-        //         return hour.start >= args.start && hour.end <= args.end;
-        //     });
-        //     return rooms.filter(room => !connections.find(conn => conn.room === room.id))
-        // },
 
         getRooms: (obj, args, context) => {
             const filteredHours = hours.filter(hour => {
@@ -247,9 +217,6 @@ const resolvers = {
                 })
             }))
         },
-        // getRooms: (obj, args, context) => {
-        //     rooms.filter((room) => !room.connection.isBusy).filter(hours )
-        // }
     },
 
     Floor: {
