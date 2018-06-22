@@ -87,7 +87,7 @@ const typeDefs = `
         id: ID!
         createdAt: Int
         name: String
-        hoursConnection: [RoomHourConnection]
+        hoursConnection(bookedBy: String): [RoomHourConnection]
     }
     
     type RoomInput {
@@ -103,7 +103,7 @@ const typeDefs = `
         book(author: String): Book,
         hours: [Hour],
         freeRooms(start: Float, end: Float): [RoomPayload]
-        occupiedRooms(start: Float, end: Float): [RoomPayload]
+        getRooms(start: Float, end: Float, booked: Boolean): [RoomPayload]
         # getRooms(start: Float, end: Float, isBusy: Boolean): [RoomPayload]
     }
 
@@ -212,46 +212,45 @@ const resolvers = {
         // book: () => ({})
         book: (obj, args, context) =>  books.find(book => book.author === args.author),
         hours: () => hours,
-        freeRooms: (obj, args, context) => {
-            const connections = dummyRoomHourConnections.filter(connection => {
-                const hour = getElementById(connection.hour, hours);
-                return hour.start >= args.start && hour.end <= args.end;
-            });
-            return rooms.filter(room => !connections.find(conn => conn.room === room.id))
-        },
+        // freeRooms: (obj, args, context) => {
+        //     const connections = dummyRoomHourConnections.filter(connection => {
+        //         const hour = getElementById(connection.hour, hours);
+        //         return hour.start >= args.start && hour.end <= args.end;
+        //     });
+        //     return rooms.filter(room => !connections.find(conn => conn.room === room.id))
+        // },
 
-        occupiedRooms: (obj, args, context) => {
-            const connections = dummyRoomHourConnections.filter(connection => {
-                const hour = getElementById(connection.hour, hours);
-                return hour.start >= args.start && hour.end <= args.end;
+        getRooms: (obj, args, context) => {
+            const filteredHours = hours.filter(hour => {
+                let result = true;
+                if (args.start && args.end) result = hour.start >= args.start && hour.end <= args.end;
+                if (args.start && !args.end) result = hour.start >= args.start;
+                if (!args.start && args.end) result = hour.end <= args.end;
+
+                return result;
             });
-            return rooms.filter(room => connections.find(conn => conn.room === room.id)).map(room => ({
+            const connections = dummyRoomHourConnections.filter(connection => {
+                return getElementById(connection.hour, filteredHours);
+            });
+            return rooms.filter(room => {
+                if(args.booked === undefined) return true;
+                const result = connections.find(conn => conn.room === room.id);
+                return args.booked ? result : !result;
+            }).map(room => ({
                 ...room,
-                hoursConnection: hours.filter(hour => hour.start >= args.start && hour.end <= args.end).map(hour => {
+                hoursConnection: filteredHours.map(hour => {
                     const conn = connections.find(conn => conn.hour === hour.id);
                     return {
                         hour,
                         bookedBy: conn ? conn.bookedBy : null
                     };
                 })
-                // hoursConnection: connections.find(conn => conn.room === room.id)
             }))
         },
         // getRooms: (obj, args, context) => {
         //     rooms.filter((room) => !room.connection.isBusy).filter(hours )
         // }
     },
-
-    // RoomHourEdge: {
-    //     bookedBy: (obj, args, context, info) => {
-    //         console.log('yyyyyyyyyyyy', obj.hoursConnection.bookedBy)
-    //         return obj.hoursConnection.bookedBy;
-    //     },
-    //     hour: (obj, args, context, info) => {
-    //         console.log('++++++++++++++++++++++', obj.hoursConnection.hour)
-    //         return obj.hoursConnection.hour // getElementById(obj.hoursConnection.hour, hours);
-    //     }
-    // },
 
     Floor: {
         id: () => 1001,
@@ -277,28 +276,20 @@ const resolvers = {
         createdAt: () => 31
     },
 
-    // RoomPayload: (obj) => {
-    //     console.log("======== RP")
-    //     return {
-    //         id: obj.id,
-    //         createdAt: obj.created,
-    //         name: obj.name,
-    //         hoursConnection: {}
-    //     }
-    // },
     RoomPayload: { 
-        hoursConnection: (obj) => {
-            console.log("======== RP")
-            return [obj];
+        hoursConnection: (obj, args, context, info) => [
+            !args.bookedBy ?
+            obj.hoursConnection : 
+            obj.hoursConnection.filter(conn => conn.bookedBy === args.bookedBy)
+        ]
+    },
+    
+    RoomHourConnection : {
+        edges: (obj, args, context) => {
+            return obj;
         }
     },
 
-    RoomHourConnection : {
-        edges: (obj) => {
-            console.log('=====> RoomHourConnection', obj);
-            return obj.hoursConnection;
-        }
-    },
     Mutation: {
         generateRoom: (_, {}) => {
             //generate room
