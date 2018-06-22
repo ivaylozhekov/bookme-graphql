@@ -239,7 +239,7 @@ const resolvers = {
             }).map(room => ({
                 ...room,
                 hoursConnection: filteredHours.map(hour => {
-                    const conn = connections.find(conn => conn.hour === hour.id);
+                    const conn = connections.find(conn => conn.hour === hour.id && conn.room === room.id);
                     return {
                         hour,
                         bookedBy: conn ? conn.bookedBy : null
