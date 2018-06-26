@@ -3,180 +3,81 @@ import {makeExecutableSchema} from 'graphql-tools';
 const typeDefs = `
     interface Node {
         id: ID!
-        createdAt: Int
     }
-    
-    interface Edge {
-        createdAt: Int
-    }
-    
-    interface Connection {
-        pageInfo: PageInfo!
-        edges: [Edge]
-    }
-    
-    type PageInfo {
-        hasNextPage: Boolean!
-        hasPreviousPage: Boolean!
-        startCursor: String
-        endCursor: String
-    }
-    
+  
     # =============================================================
+
     type Floor implements Node {
         id: ID!
-        createdAt: Int
         name: String
-        roomsConnection(first: Int, after: String, last: Int, before: String): FloorRoomsConnection
+        rooms(booked: Boolean, before: String, after: String): [Room!]!
     }
-    
-    type FloorRoomsConnection implements Connection {
-        pageInfo: PageInfo!
-        edges: [FloorRoomsEdge]
-    }
-    
-    type FloorRoomsEdge implements Edge {
-        cursor: String!
-        node: RoomPayload!
-        createdAt: Int
-    }
-    
-    #==============================================================
-    
-    #type Hour implements Node {
-    #    id: ID!
-    #    createdAt: Int
-    #    name: String
-    #   roomsConnection: [RoomHourConnection]
-    #}
 
-    type Hour {
+    #==============================================================
+
+    type Room implements Node {
         id: ID!
-        start: Float
-        end: Float
-        created: Int
-    }
-    
-    type RoomHourEdge implements Edge {
-        cursor: String!
-        hour: Hour!
-        room: RoomPayload
-        isFree: Boolean!
-        bookedBy: String
-        createdAt: Int
-    }
-    
-    type RoomHourConnection implements Connection {
-        pageInfo: PageInfo!
-        edges: [RoomHourEdge]
-    }
-    
-    # =============================================================
-   
-    type RoomPayload implements Node {
-        id: ID!
-        createdAt: Int
         name: String
-        hoursConnection(bookedBy: String, booked: Boolean): [RoomHourConnection]
+        appointmentSlots(booked: Boolean, before: String, after: String): [AppointmentSlot]
     }
-    
-    type RoomInput {
+
+    type AppointmentSlot implements Node {
+        id: ID!
+        room: Room
+        hour: Hour
+        bookedBy: String
+    }
+  
+    type Hour implements Node {
+        id: ID!
         name: String!
-        floorId: String!
     }
+  
     # =============================================================
+
     # the schema allows the following query:
     type Query {
         floors: [Floor]
-        rooms(from: Int, to: Int): [RoomPayload],
-        hours: [Hour],
-        getRooms(start: Float, end: Float, booked: Boolean, bookedBy: String): [RoomPayload]
+        rooms(from: Int, to: Int): [Room]
+        getRoom(id: ID!): Room
     }
 
     # this schema allows the following mutation:
     type Mutation {
-        generateRoom: RoomPayload
+        bookRoom(roomId: ID!): Room
+        unbookRoom(roomId: ID!): Room
     }
 `;
 
 let id = 0;
-let hid = 0;
-
-const dummyPageInfo = {
-    hasNextPage: true,
-    hasPreviousPage: true,
-    startCursor: '',
-    endCursor: ''
-};
 
 // example data
 const rooms = [
-    {id: 0, name: 'Java', created: 1529316799125},
-    {id: 1, name: 'JavaScript', created: 1529316799425},
-    {id: 2, name: '#Net', created: 1529316799625},
-    {id: 3, name: 'Angular', created: 1529316712125}
+    {id: 0, name: 'Java'},
+    {id: 1, name: 'JavaScript'},
+    {id: 2, name: '#Net'},
+    {id: 3, name: 'Mocha'}
 ];
 
 const floors = [
-    {id: 1001, name: 'Infinity 11', created: 15299125},
-    {id: 1002, name: 'Infinity10', created: 15299425},
-    {id: 1003, name: 'SPS 3', created: 15299625},
-    {id: 1004, name: 'SPS 2', created: 15293125}
+    {id: 1001, name: 'Infinity 11'},
+    {id: 1002, name: 'Infinity10'},
+    {id: 1003, name: 'SPS 3'},
+    {id: 1004, name: 'SPS 2'}
 ];
 
-const hours = [
-    {id: 0, start: 9, end: 9.5, created: 15299125},
-    {id: 1, start: 9.5, end: 10, created: 15299425},
-    {id: 2, start: 10, end: 10.5, created: 15299625},
-    {id: 3, start: 10.5, end: 11, created: 15293125},
-    {id: 4, start: 11, end: 11.5, created: 15293125},
-    {id: 5, start: 11.5, end: 12, created: 15293125},
-    {id: 6, start: 12, end: 12.5, created: 15299125},
-    {id: 7, start: 12.5, end: 13, created: 15299425},
-    {id: 8, start: 13, end: 13.5, created: 15299125},
-    {id: 9, start: 13.5, end: 14, created: 15299425},
-    {id: 10, start: 14, end: 14.5, created: 15299125},
-    {id: 11, start: 14.5, end: 15, created: 15299425},
-    {id: 12, start: 15, end: 15.5, created: 15299125},
-    {id: 13, start: 15.5, end: 16, created: 15299425},
-    {id: 14, start: 16, end: 16.5, created: 15299125},
-    {id: 15, start: 16.5, end: 17, created: 15299425},
-    {id: 16, start: 17, end: 17.5, created: 15299125},
-    {id: 17, start: 17.5, end: 18, created: 15299425},
-];
+const slots = [{id: ++id}, {id: ++id}, {id: ++id}, {id: ++id}];
 
-const dummyRoomHourConnections = [
-    {
-        cursor: 1,
-        hour: 1,
-        room: 1,
-        bookedBy: 'Pesho',
-        createdAt: 12341234
-    },
-    {
-        cursor: 1,
-        hour: 4,
-        room: 1,
-        bookedBy: 'Gosho',
-        createdAt: 12341234
-    },
-    {
-        cursor: 1,
-        hour: 2,
-        room: 0,
-        bookedBy: 'Misho',
-        createdAt: 12341234
-    },
-    {
-        cursor: 1,
-        hour: 12,
-        room: 0,
-        bookedBy: 'Misho',
-        createdAt: 12341234
-    }
-]
-
-const getElementById = (id, arr) => arr.find(el => el.id === id);
+const hours = [{
+    id: ++id,
+    name: '10:00'
+}, {
+    id: ++id,
+    name: '10:30'
+}, {
+    id: ++id,
+    name: '11:00'
+}];
 
 const resolvers = {
     Query: {
@@ -185,94 +86,44 @@ const resolvers = {
             return rooms;
         },
         floors: (obj, args, context, info) => {
-            console.log('0. get floors');
             return floors;
         },
-        hours: () => hours,
-
-        getRooms: (obj, args, context) => {
-            const filteredHours = hours.filter(hour => {
-                let result = true;
-                if (args.start && args.end) result = hour.start >= args.start && hour.end <= args.end;
-                if (args.start && !args.end) result = hour.start >= args.start;
-                if (!args.start && args.end) result = hour.end <= args.end;
-
-                return result;
-            });
-            const connections = dummyRoomHourConnections.filter(connection => {
-                return getElementById(connection.hour, filteredHours);
-            });
-            return rooms.filter(room => {
-                if(args.booked === undefined) return true;
-                const result = connections.find(conn => args.bookedBy ? conn.room === room.id && conn.bookedBy === args.bookedBy : conn.room === room.id);
-                return args.booked ? result : !result;
-            }).map(room => ({
-                ...room,
-                hoursConnection: filteredHours.map(hour => {
-                    const conn = connections.find(conn => conn.hour === hour.id && conn.room === room.id);
-                    return {
-                        hour,
-                        bookedBy: conn ? conn.bookedBy : null
-                    };
-                })
-            }))
-        },
+        getRoom:(obj, args, context, info) => {
+            return rooms.find(room => room.id.toString() === args.id);
+        }
     },
 
     Floor: {
-        id: () => 1001,
-        name: () => 'Infinity 11',
-        createdAt: () => 1529316799125,
-        roomsConnection: (obj, args, context, info) => {
-            return [{}, {}]
+        rooms: (obj, arg, context, info) => {
+            return rooms;
         }
     },
 
-    FloorRoomsConnection: {
-        pageInfo: (obj) => {
-            return dummyPageInfo;
+    Room: {
+        appointmentSlots: (obj, arg, context, info) => {
+            return slots;
+        }
+    },
+
+    AppointmentSlot: {
+        room: (obj, arg, context, info) => {
+            return rooms[0];
         },
-        edges: (obj) => {
-            return [{}, {}, {}];
-        }
-    },
-
-    FloorRoomsEdge: {
-        cursor: () => '1251261',
-        node: () => rooms[0],
-        createdAt: () => 31
-    },
-
-    RoomPayload: { 
-        hoursConnection: (obj, args, context, info) => {
-            if (args.bookedBy) {
-                return [obj.hoursConnection.filter(conn => conn.bookedBy === args.bookedBy)];
-            } else if (args.booked !== undefined) {
-                return [obj.hoursConnection.filter(conn => args.booked ? conn.bookedBy : !conn.bookedBy)]
-            }
-
-            return [obj.hoursConnection];
-        }
-    },
-    
-    RoomHourConnection : {
-        edges: (obj, args, context) => {
-            return obj;
+        hour: (obj, arg, context, info) => {
+            return hours[0];
+        },
+        bookedBy: (obj, arg, context, info) => {
+            return null;
         }
     },
 
     Mutation: {
-        generateRoom: (_, {}) => {
-            //generate room
-            const newRoom = {
-                id: ++id,
-                name: Math.random(),
-                created: parseInt(Date.now() / 10000)
-            };
-
-            rooms.push(newRoom);
-            return newRoom;
+        bookRoom: (roomId) => {
+            return rooms[0]
         },
+        unbookRoom: (roomId) => {
+            return rooms[1]
+        }
     }
 };
 
@@ -283,3 +134,78 @@ export const schema = makeExecutableSchema({
 });
 
 export default schema;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//
+//
+// type Author {
+//     id: Int
+//     name: String
+//     posts: [Post]
+// }
+// type Post {
+//     id: Int
+//     title: String
+//     text: String
+//     author: Author
+// }
+// type Query {
+//     getAuthor(id: Int): Author
+//     getPostsByTitle(titleContains: String): [Post]
+// }
+// schema {
+//     query: Query
+// }
+//
+//
+//
+// getAuthor(_, args){
+//     return sql.raw('SELECT * FROM authors WHERE id = %s', args.id);
+// }
+// posts(author){
+//     return request(`https://api.blog.io/by_author/${author.id}`);
+// }
